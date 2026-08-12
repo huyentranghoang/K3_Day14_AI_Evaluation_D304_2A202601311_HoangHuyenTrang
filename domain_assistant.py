@@ -23,7 +23,7 @@ from typing import Any, Protocol
 from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError
 
-load_dotenv(Path(__file__).resolve().with_name(".env"))
+load_dotenv(Path(__file__).resolve().with_name(".env"), override=True)
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
@@ -243,27 +243,57 @@ class TextGenerator(Protocol):
 
 
 class OpenAIGenerator:
+    """OpenAI-SDK client pointed at OpenRouter (chat.completions, free models)."""
+
+    _PLACEHOLDER_KEYS = {
+        "",
+        "your_openai_api_key_here",
+        "your_openrouter_api_key_here",
+    }
+
     def __init__(self, max_output_tokens: int = 300) -> None:
         api_key = os.getenv("OPENAI_API_KEY", "").strip()
         self.model = os.getenv("OPENAI_MODEL", "").strip()
-        if not api_key:
+        base_url = os.getenv(
+            "OPENAI_BASE_URL", "https://openrouter.ai/api/v1"
+        ).strip()
+        if api_key in self._PLACEHOLDER_KEYS:
             raise RuntimeError("OPENAI_API_KEY is missing from .env")
         if not self.model:
             raise RuntimeError("OPENAI_MODEL is missing from .env")
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            default_headers={"Authorization": f"Bearer {api_key}"},
+        )
         self.max_output_tokens = max_output_tokens
 
     def generate(self, prompt: str) -> str:
-        response = self.client.responses.create(
-            model=self.model,
-            input=prompt,
-            temperature=0,
-            max_output_tokens=self.max_output_tokens,
-        )
-        answer = response.output_text.strip()
-        if not answer:
-            raise RuntimeError("OpenAI returned an empty answer")
-        return answer
+        last_error: Exception | None = None
+        for attempt in range(5):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                    max_tokens=self.max_output_tokens,
+                )
+                answer = (response.choices[0].message.content or "").strip()
+                if not answer:
+                    raise RuntimeError("OpenRouter returned an empty answer")
+                return answer
+            except (OpenAIError, RuntimeError) as exc:
+                last_error = exc
+                text = str(exc).lower()
+                retryable = any(
+                    token in text
+                    for token in ("429", "rate limit", "timeout", "502", "503")
+                )
+                if attempt < 4 and retryable:
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+        raise RuntimeError(f"OpenRouter failed after retries: {last_error}")
 
 
 @dataclass(frozen=True)

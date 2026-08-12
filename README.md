@@ -10,7 +10,7 @@ trên corpus **Northstar University Student Services**, rồi phân tích kết 
 > sinh câu trả lời; `template.py` là **evaluation engine** chấm các câu trả lời
 > đó. Hai phần có vai trò khác nhau.
 
-Hướng dẫn thao tác đầy đủ nằm trong [`guide_lab.md`](guide_lab.md).
+Hướng dẫn thao tác đầy đủ nằm trong `[guide_lab.md](guide_lab.md)`.
 
 ---
 
@@ -28,9 +28,11 @@ pytest tests/ -v                         # baseline: 42 tests collected, 42 fail
 cp .env.example .env                     # rồi điền OPENAI_API_KEY (chỉ cần cho Part 3)
 ```
 
-Chi tiết đầy đủ theo hệ điều hành, xử lý lỗi thường gặp: xem [`guide_lab.md`](guide_lab.md) Mục 2 và Mục 15.
+Chi tiết đầy đủ theo hệ điều hành, xử lý lỗi thường gặp: xem `[guide_lab.md](guide_lab.md)` Mục 2 và Mục 15.
 
 ---
+
+
 
 ## Mục tiêu
 
@@ -44,6 +46,8 @@ Sau lab này, bạn sẽ:
 6. Hiểu cách dùng evaluation như một CI/CD quality gate.
 
 ---
+
+
 
 ## Luồng end-to-end của bài lab
 
@@ -71,12 +75,16 @@ data/student_services/*.md
 ```
 
 `domain_assistant.py` chỉ đọc `id` và `question` khi sinh answer. Nó **không
-đọc `expected_answer` hoặc gold contexts để trả lời**, vì làm vậy sẽ gây data
+đọc** `expected_answer` **hoặc gold contexts để trả lời**, vì làm vậy sẽ gây data
 leakage và làm benchmark mất ý nghĩa.
 
 ---
 
+
+
 ## Bối cảnh lý thuyết
+
+
 
 ### Evaluation = Scientific Method cho AI
 
@@ -88,20 +96,28 @@ Evaluation tốt phải **lặp lại được**, **so sánh được** và **ch
 
 ### Ba loại evaluation
 
-| Loại | Khi nào | Ví dụ công cụ |
-|---|---|---|
-| Offline | Mỗi release hoặc prompt change | RAGAS, DeepEval, TruLens |
-| Online | Continuous, real traffic | TruLens, Langfuse |
-| Human | High-stakes hoặc cần calibration | Annotation UI, spreadsheet |
+
+| Loại    | Khi nào                          | Ví dụ công cụ              |
+| ------- | -------------------------------- | -------------------------- |
+| Offline | Mỗi release hoặc prompt change   | RAGAS, DeepEval, TruLens   |
+| Online  | Continuous, real traffic         | TruLens, Langfuse          |
+| Human   | High-stakes hoặc cần calibration | Annotation UI, spreadsheet |
+
+
+
 
 ### Bốn nhóm metrics
 
-| Nhóm | Metrics |
-|---|---|
-| Task Completion | Binary pass/fail, partial credit |
-| Answer Quality | Accuracy, completeness, coherence |
-| RAG-Specific | Faithfulness, relevance, context recall, context precision |
-| Business | User satisfaction, time saved, cost, adoption |
+
+| Nhóm            | Metrics                                                    |
+| --------------- | ---------------------------------------------------------- |
+| Task Completion | Binary pass/fail, partial credit                           |
+| Answer Quality  | Accuracy, completeness, coherence                          |
+| RAG-Specific    | Faithfulness, relevance, context recall, context precision |
+| Business        | User satisfaction, time saved, cost, adoption              |
+
+
+
 
 ### RAG metrics pipeline
 
@@ -112,13 +128,15 @@ Question → Retriever → Context → Generator → Answer
           Recall      Precision                Relevance
 ```
 
-| Metric | Câu hỏi cần trả lời | Heuristic trong lab |
-|---|---|---|
-| Faithfulness | Answer có grounded trong gold context không? | `|answer ∩ context| / |answer|` |
-| Relevance | Answer có trả lời đúng question không? | `|answer ∩ question| / |question|` |
-| Completeness | Answer có đủ nội dung expected không? | `|answer ∩ expected| / |expected|` |
-| Context Recall | Retriever có lấy đủ evidence không? | `|expected ∩ union(chunks)| / |expected|` |
+
+| Metric            | Câu hỏi cần trả lời                             | Heuristic trong lab |
+| ----------------- | ----------------------------------------------- | ------------------- |
+| Faithfulness      | Answer có grounded trong gold context không?    | `                   |
+| Relevance         | Answer có trả lời đúng question không?          | `                   |
+| Completeness      | Answer có đủ nội dung expected không?           | `                   |
+| Context Recall    | Retriever có lấy đủ evidence không?             | `                   |
 | Context Precision | Chunk relevant có đứng sớm trong ranking không? | Average Precision@K |
+
 
 Hai retrieval metrics chạy trên `QAPair.retrieved_contexts`, là danh sách
 chunks theo đúng thứ tự retriever trả về. Chúng dùng để chẩn đoán retrieval và
@@ -137,32 +155,44 @@ Best practices gồm randomize order, multiple judges và calibration với huma
 
 ### Golden Dataset Design
 
-| Phân bổ | Mục đích |
-|---|---|
-| 5 Easy | Factual lookup, thường dùng một document |
-| 7 Medium | Kết hợp quy trình hoặc evidence từ 2–3 documents |
-| 5 Hard | Nhiều điều kiện, ngoại lệ, effective date hoặc ambiguity |
-| 3 Adversarial | Out-of-scope, prompt injection, false premise/trap |
+
+| Phân bổ       | Mục đích                                                 |
+| ------------- | -------------------------------------------------------- |
+| 5 Easy        | Factual lookup, thường dùng một document                 |
+| 7 Medium      | Kết hợp quy trình hoặc evidence từ 2–3 documents         |
+| 5 Hard        | Nhiều điều kiện, ngoại lệ, effective date hoặc ambiguity |
+| 3 Adversarial | Out-of-scope, prompt injection, false premise/trap       |
+
+
+
 
 ### Failure taxonomy
 
-| Loại | Triệu chứng | Root cause thường gặp |
-|---|---|---|
-| `hallucination` | Answer không grounded | Context hoặc grounding guardrail yếu |
-| `irrelevant` | Không giải quyết question | Prompt/routing sai |
-| `incomplete` | Bỏ sót thông tin quan trọng | Retrieval thiếu hoặc generation thiếu |
-| `off_topic` | Trả lời sai chủ đề | Intent detection sai |
-| `refusal` | Từ chối khi nên trả lời | Guardrail quá chặt |
+
+| Loại            | Triệu chứng                 | Root cause thường gặp                 |
+| --------------- | --------------------------- | ------------------------------------- |
+| `hallucination` | Answer không grounded       | Context hoặc grounding guardrail yếu  |
+| `irrelevant`    | Không giải quyết question   | Prompt/routing sai                    |
+| `incomplete`    | Bỏ sót thông tin quan trọng | Retrieval thiếu hoặc generation thiếu |
+| `off_topic`     | Trả lời sai chủ đề          | Intent detection sai                  |
+| `refusal`       | Từ chối khi nên trả lời     | Guardrail quá chặt                    |
+
+
+
 
 ### Evaluation frameworks
 
-| Framework | Focus | Phù hợp nhất với |
-|---|---|---|
-| RAGAS | RAG metrics chuẩn hóa | RAG offline evaluation |
-| DeepEval | LLM unit testing, pytest-native | CI/CD assertions |
-| TruLens | Feedback functions và tracing | Online + offline monitoring |
+
+| Framework | Focus                           | Phù hợp nhất với            |
+| --------- | ------------------------------- | --------------------------- |
+| RAGAS     | RAG metrics chuẩn hóa           | RAG offline evaluation      |
+| DeepEval  | LLM unit testing, pytest-native | CI/CD assertions            |
+| TruLens   | Feedback functions và tracing   | Online + offline monitoring |
+
 
 ---
+
+
 
 ## Cấu trúc repo
 
@@ -197,7 +227,11 @@ deliverable bắt buộc và không được chấm theo việc có commit hay k
 
 ---
 
+
+
 ## Tasks
+
+
 
 ### Task 1 — Data Models
 
@@ -224,6 +258,8 @@ Triển khai hai retrieval-side metrics:
 - `score_response`: build judge prompt, gọi judge function và parse scores.
 - `detect_bias`: phát hiện positional, leniency và severity bias.
 
+
+
 ### Task 4 — BenchmarkRunner
 
 - `run`: chạy mọi QA qua `agent_fn` và evaluator.
@@ -242,6 +278,8 @@ Precision trên những result có retrieval scores.
 - `generate_improvement_suggestions`
 - `generate_improvement_log`
 
+
+
 ### Task 6 — Golden Dataset và benchmark thật
 
 1. Điền 20 QA trong `golden_dataset.json`.
@@ -252,51 +290,65 @@ Precision trên những result có retrieval scores.
 
 ---
 
+
+
 ## Sản phẩm nộp bài
 
-| File | Yêu cầu |
-|---|---|
-| `solution/solution.py` | Hoàn thiện tất cả TODO bắt buộc của evaluation core |
-| `golden_dataset.json` | Đủ 20 QA, đúng schema, distribution và evidence |
-| `exercises.md` | Hoàn thành worksheet, benchmark 3.2 và rubric 3.3 |
-| `reflection.md` | Evaluation report, 3 failures, 5 Whys và regression strategy |
+
+| File                   | Yêu cầu                                                      |
+| ---------------------- | ------------------------------------------------------------ |
+| `solution/solution.py` | Hoàn thiện tất cả TODO bắt buộc của evaluation core          |
+| `golden_dataset.json`  | Đủ 20 QA, đúng schema, distribution và evidence              |
+| `exercises.md`         | Hoàn thành worksheet, benchmark 3.2 và rubric 3.3            |
+| `reflection.md`        | Evaluation report, 3 failures, 5 Whys và regression strategy |
+
 
 ---
+
+
 
 ## Thời gian làm bài
 
 Buổi học diễn ra từ **09:15 đến 13:00**. Hoàn thành bài lab trước **12:00**;
 thời gian 12:00–13:00 dành cho demo và Q&A.
 
-| Thời gian | Hoạt động |
-|---|---|
-| 09:15–09:30 | Tạo môi trường, smoke test và baseline tests |
-| 09:30–09:45 | Part 1 — Warm-up |
-| 09:45–10:40 | Part 2 — Core Coding và checkpoint tests |
-| 10:40–11:35 | Part 3 — Golden Dataset, RAG, benchmark và rubric |
-| 11:35–11:50 | Part 4 — Failure analysis và reflection |
+
+| Thời gian   | Hoạt động                                            |
+| ----------- | ---------------------------------------------------- |
+| 09:15–09:30 | Tạo môi trường, smoke test và baseline tests         |
+| 09:30–09:45 | Part 1 — Warm-up                                     |
+| 09:45–10:40 | Part 2 — Core Coding và checkpoint tests             |
+| 10:40–11:35 | Part 3 — Golden Dataset, RAG, benchmark và rubric    |
+| 11:35–11:50 | Part 4 — Failure analysis và reflection              |
 | 11:50–12:00 | Copy solution, chạy kiểm tra cuối và rà deliverables |
-| 12:00–13:00 | Demo và Q&A |
+| 12:00–13:00 | Demo và Q&A                                          |
+
 
 ---
 
+
+
 ## Rubric
 
-| Tiêu chí | Điểm |
-|---|---:|
-| Core coding hoàn chỉnh, toàn bộ required tests pass | 50 |
-| Golden dataset 20 QA đúng schema, stratification và evidence | 15 |
-| LLM-as-a-Judge rubric design rõ ràng, domain-specific | 10 |
-| Benchmark, 5 Whys, failure analysis và improvement log | 15 |
-| Chất lượng code, type hints và regression strategy | 10 |
-| **Tổng** | **100** |
+
+| Tiêu chí                                                     | Điểm    |
+| ------------------------------------------------------------ | ------- |
+| Core coding hoàn chỉnh, toàn bộ required tests pass          | 50      |
+| Golden dataset 20 QA đúng schema, stratification và evidence | 15      |
+| LLM-as-a-Judge rubric design rõ ràng, domain-specific        | 10      |
+| Benchmark, 5 Whys, failure analysis và improvement log       | 15      |
+| Chất lượng code, type hints và regression strategy           | 10      |
+| **Tổng**                                                     | **100** |
+
 
 Bonus không thay thế phần điểm bắt buộc:
 
-| Bonus | Điểm tối đa |
-|---|---:|
-| Exercise 3.4 — so sánh hai evaluation frameworks | +10 |
-| Exercise 3.5 — reranking và phân tích retrieval metrics | +5 |
+
+| Bonus                                                   | Điểm tối đa |
+| ------------------------------------------------------- | ----------- |
+| Exercise 3.4 — so sánh hai evaluation frameworks        | +10         |
+| Exercise 3.5 — reranking và phân tích retrieval metrics | +5          |
+
 
 > **Benchmark score không quyết định điểm lab.** LLM output có thể thay đổi theo
 > model và từng lần chạy. Điểm được chấm dựa trên pipeline đúng, dataset có chất
@@ -304,6 +356,8 @@ Bonus không thay thế phần điểm bắt buộc:
 > phải đạt một con số cố định.
 
 ---
+
+
 
 ## Checklist trước khi nộp
 
